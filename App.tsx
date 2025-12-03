@@ -4,7 +4,7 @@ import { ImageFile, ProcessStatus } from './types';
 import { evaluateImage, evaluateImageGroup } from './services/geminiService';
 import { parseXMP, saveXMPInDirectory, verifyPermission, deleteFile, moveFileToSubfolder, generateXMPContent } from './services/fileSystem';
 import { saveRecentFolder, getRecentFolders, RecentFolder } from './services/storage';
-import { resizeImage } from './services/imageProcessing';
+import { resizeImage, getDateTaken } from './services/imageProcessing';
 import ImageThumbnail from './components/ImageThumbnail';
 import InspectorPanel from './components/InspectorPanel';
 import { FolderOpen, AlertCircle, Play, Pause, RefreshCw, AlertTriangle, History, Filter, Trash2 } from 'lucide-react';
@@ -52,18 +52,21 @@ const App: React.FC = () => {
       processingRef.current = true;
       
       // --- BURST DETECTION START ---
-      const batchCandidates: { index: number, file: ImageFile, fileObj: File }[] = [];
+      const batchCandidates: { index: number, file: ImageFile, fileObj: File, timestamp: number }[] = [];
       
       try {
         // Get the first file
         const firstFileObj = await currentFiles[nextFileIndex].handle.getFile();
+        const firstTimestamp = await getDateTaken(firstFileObj);
+
         batchCandidates.push({ 
             index: nextFileIndex, 
             file: currentFiles[nextFileIndex], 
-            fileObj: firstFileObj 
+            fileObj: firstFileObj,
+            timestamp: firstTimestamp
         });
 
-        // Look ahead for similar files (Burst logic: within 5 seconds)
+        // Look ahead for similar files
         let lookAhead = 1;
         const MAX_BATCH_SIZE = 4; // Gemini payload limit safety
 
@@ -78,19 +81,27 @@ const App: React.FC = () => {
             if (candidateFile.status !== 'pending') break;
 
             const candidateFileObj = await candidateFile.handle.getFile();
-            const prevObj = batchCandidates[batchCandidates.length - 1].fileObj;
-
-            // Check Time Delta (5000ms = 5 seconds)
-            const timeDelta = Math.abs(candidateFileObj.lastModified - prevObj.lastModified);
+            const candidateTimestamp = await getDateTaken(candidateFileObj);
             
-            if (timeDelta < 5000) {
+            const prevTimestamp = batchCandidates[batchCandidates.length - 1].timestamp;
+            const startTimestamp = batchCandidates[0].timestamp;
+
+            // Calculate Deltas
+            const neighborDelta = Math.abs(candidateTimestamp - prevTimestamp);
+            const totalDelta = Math.abs(candidateTimestamp - startTimestamp);
+            
+            // Burst Criteria:
+            // 1. Neighboring images must be close (< 2s)
+            // 2. Total sequence shouldn't drift too long (< 4s from start)
+            // 3. We allow delta === 0 because high-speed bursts often have identical second timestamps in EXIF
+            if (neighborDelta < 2000 && totalDelta < 4000) {
                 batchCandidates.push({
                     index: candidateIndex,
                     file: candidateFile,
-                    fileObj: candidateFileObj
+                    fileObj: candidateFileObj,
+                    timestamp: candidateTimestamp
                 });
             } else {
-                // Break if sequence is broken by time
                 break;
             }
             lookAhead++;

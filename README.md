@@ -1,4 +1,4 @@
-# Snapshot Gatekeeper
+# SnapShot Gatekeeper
 ## Run Locally
 
 **Prerequisites:**  Node.js
