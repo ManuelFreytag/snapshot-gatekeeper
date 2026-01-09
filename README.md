@@ -1,6 +1,6 @@
-# SnapShot Gatekeeper
+# Snapshot Filter Assistant
 
-SnapShot Gatekeeper is an AI-powered photography curation tool designed to help photographers quickly sort through thousands of images. It uses Google's Gemini AI to evaluate photos, detect bursts, and suggest which shots to keep.
+Snapshot Filter Assistant is an AI-powered photography curation tool designed to help photographers quickly sort through thousands of images. It uses Google's Gemini AI to evaluate photos, detect bursts, and suggest which shots to keep.
 
 ## UI Overview
 
